@@ -75,25 +75,29 @@ fn format_entries(entries: &[TimeTableEntry], dt: &DateTime<FixedOffset>) -> Res
     Ok(s)
 }
 
-async fn find_timetable(db: &Database, dt: &DateTime<FixedOffset>) -> Result<Vec<TimeTableEntry>> {
+async fn find_timetable(db: &Database, dt: &DateTime<FixedOffset>, major_id: &String) -> Result<Vec<TimeTableEntry>> {
     let day_of_week: DayOfWeek = dt.weekday().into();
     let week: WeekType = (*dt).into(); // TODO: might something stupid
 
     let entries = sqlx::query_as::<_, TimeTableEntry>(
         r#"SELECT * FROM public.timetable 
-        WHERE week = $1 AND day_of_week = $2 
+        WHERE 
+            week = $1 
+            AND day_of_week = $2
+            AND major_id = $3 
         ORDER BY starts_at;"#,
     )
     .bind(&week)
     .bind(&day_of_week)
+    .bind(major_id)
     .fetch_all(db.pool.as_ref())
     .await?;
 
     Ok(entries)
 }
 
-async fn prepate_text(db: &Database, dt: &DateTime<FixedOffset>) -> Result<String> {
-    let entries = find_timetable(db, dt).await?;
+async fn prepate_text(db: &Database, dt: &DateTime<FixedOffset>, major_id: &String) -> Result<String> {
+    let entries = find_timetable(db, dt, major_id).await?;
     let text = if !entries.is_empty() {
         format_entries(&entries, dt)?
     } else {
@@ -107,9 +111,10 @@ pub async fn command_handler(
     db: &Database,
     bot: &Bot,
     dt: DateTime<FixedOffset>,
+    major_id: &String,
     chat: &Chat,
 ) -> Result<()> {
-    let text = prepate_text(db, &dt).await?;
+    let text = prepate_text(db, &dt, major_id).await?;
     bot.send_message(chat.id, text)
         .parse_mode(ParseMode::Html)
         .await?;
@@ -121,10 +126,11 @@ pub async fn button_handler_known_chat(
     db: &Database,
     bot: &Bot,
     dt: DateTime<FixedOffset>,
+    major_id: &String,
     chat: &Chat,
     message_id: MessageId,
 ) -> Result<()> {
-    let text = prepate_text(db, &dt).await?;
+    let text = prepate_text(db, &dt, major_id).await?;
     bot.edit_message_text(chat.id, message_id, text)
         .parse_mode(ParseMode::Html)
         .await?;
@@ -136,9 +142,10 @@ pub async fn button_handler_unknown_chat(
     db: &Database,
     bot: &Bot,
     dt: DateTime<FixedOffset>,
+    major_id: &String,
     id: String,
 ) -> Result<()> {
-    let text = prepate_text(db, &dt).await?;
+    let text = prepate_text(db, &dt, major_id).await?;
     bot.edit_message_text_inline(id, text)
         .parse_mode(ParseMode::Html)
         .await?;

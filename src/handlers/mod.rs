@@ -15,7 +15,7 @@ use teloxide::{
 use crate::{
     button_prefix::ButtonPrefix,
     config::AppConfig,
-    utils::{database::Database, time::TIME_OFFSET_SECONDS},
+    utils::{database::Database, sql::models::get_user_entry_by_id, time::TIME_OFFSET_SECONDS},
 };
 
 enum KeyboardWeek {
@@ -94,19 +94,25 @@ pub async fn timetable_commands_handler(
 ) -> Result<()> {
     let dt = crate::utils::time::now()?;
 
+    // user must exist since we do filtering with dptree
+    let author = msg.from().unwrap();
+    let author_id = i64::try_from(author.id.0)?;
+
+    let user_entry = get_user_entry_by_id(db.pool.as_ref(), author_id).await?;
+
     match cmd {
         TimetableCommand::Yesterday => {
             let dt = dt - Duration::hours(24);
-            self::schedule::command_handler(&db, &bot, dt, &msg.chat).await?;
+            self::schedule::command_handler(&db, &bot, dt, &user_entry.major_id, &msg.chat).await?;
         }
 
         TimetableCommand::Today => {
-            self::schedule::command_handler(&db, &bot, dt, &msg.chat).await?;
+            self::schedule::command_handler(&db, &bot, dt, &user_entry.major_id, &msg.chat).await?;
         }
 
         TimetableCommand::Tomorrow => {
             let dt = dt + Duration::hours(24);
-            self::schedule::command_handler(&db, &bot, dt, &msg.chat).await?;
+            self::schedule::command_handler(&db, &bot, dt, &user_entry.major_id, &msg.chat).await?;
         }
 
         TimetableCommand::ThisWeek => {
@@ -149,10 +155,17 @@ pub async fn timetable_callback_handler(db: Database, bot: Bot, q: CallbackQuery
 
     let dt: DateTime<FixedOffset> = DateTime::parse_from_rfc3339(date_rfc3339)?;
 
+    let author = q.from;
+    let author_id = i64::try_from(author.id.0)?;
+
+    let user_entry = get_user_entry_by_id(db.pool.as_ref(), author_id).await?;
+
     if let Some(Message { id, chat, .. }) = q.message {
-        self::schedule::button_handler_known_chat(&db, &bot, dt, &chat, id).await?;
+        self::schedule::button_handler_known_chat(&db, &bot, dt, &user_entry.major_id, &chat, id)
+            .await?;
     } else if let Some(id) = q.inline_message_id {
-        self::schedule::button_handler_unknown_chat(&db, &bot, dt, id).await?;
+        self::schedule::button_handler_unknown_chat(&db, &bot, dt, &user_entry.major_id, id)
+            .await?;
     }
 
     Ok(())
