@@ -28,7 +28,7 @@ CREATE TABLE timetable (
     auditorium text NOT NULL,
     professor text,
 
-    UNIQUE(week, day_of_week, starts_at),
+    UNIQUE(major_id, week, day_of_week, starts_at),
 
     CONSTRAINT fk_major
             FOREIGN KEY (major_id)
