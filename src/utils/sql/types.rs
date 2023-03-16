@@ -69,7 +69,7 @@ pub struct MajorEntry {
 #[derive(Debug, FromRow)]
 pub struct TimeTableEntry {
     pub id: i64,
-    pub major: String,
+    pub major_id: Option<String>,
     pub week: WeekType,
     pub day_of_week: DayOfWeek,
     pub starts_at: NaiveTime,
